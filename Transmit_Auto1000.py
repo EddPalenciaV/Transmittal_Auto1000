@@ -19,6 +19,17 @@ def find_excel_file():
                 print("Transmittal Excel file found in root directory.")
                 return os.path.join(rootDirectory, "Transmittal.xlsx")
 
+    print("Transmittal Excel file not found. Copying from source...")
+    try:
+        shutil.copy(source_file, rootDirectory)
+        print(f"Template Transmittal'{source_file}' copied successfully to '{rootDirectory}'")
+    except FileNotFoundError:
+        print("Error: The source file was not found.")
+    except PermissionError:
+        print("Error: You do not have permission to write to the destination.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    return os.path.join(rootDirectory, "Transmittal_TEMPLATE.xlsx")
 
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
