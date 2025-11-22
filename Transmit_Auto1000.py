@@ -152,5 +152,62 @@ def Overwrite_Transmittal():
         print("Error: Could not determine the revision column.")
         return # Exit the function if NO revision column is found
 
+    ######### Compare PDF vs Excel names, update revision when matched and add new drawings ##########
+    # Get revision from raw list of PDF drawings
+    rawlist_PDF = Catch_Drawings()
+
+    if not rawlist_PDF:
+        print("No drawings found to process.")
+        return # Exit the function if no drawings found
+
+    for file_Name in rawlist_PDF:
+        # Define regex patterns to extract project number, revision, and drawing name
+        pjtNo_pattern = r"(.*)-C" # Pattern to catch anything before "["
+        dwg_pattern = r"\d{5}-(.*) \[" # Pattern to catch anything between 5 digits with a hyphen and " ["
+        rev_pattern = r"\[(.*)\]" # Pattern to catch anything between "[ " and "]"        
+        name_pattern = r"\] (.*)\.pdf" # Pattern to catch anything between "] " and ".pdf"
+        pjtNo_match = re.search(pjtNo_pattern, file_Name)
+        dwg_match = re.search(dwg_pattern, file_Name)
+        rev_match = re.search(rev_pattern, file_Name)
+        name_match = re.search(name_pattern, file_Name)
+        
+        # Skip file if pattern not found
+        if not (pjtNo_match and dwg_match and rev_match and name_match):
+            print(f"Could not parse all details from '{file_Name}'. Skipping.")
+            continue # Skip to the next file
+        
+        # Strip found values from " " and store them
+        project_No = pjtNo_match.group(1).strip() 
+        drawing_No = dwg_match.group(1).strip() 
+        revision = rev_match.group(1).strip() 
+        drawing_Name = name_match.group(1).strip() 
+        
+        # Compare drawing names from list_PDF and drawing names from cells in Excel
+        excel_Match = False # Flag to track if the drawing name matched in Excel
+        # for name_cell in worksheet.iter_rows(min_row=24, max_row=150, min_col=3, max_col=3):        
+        for row_index in range(24, 151):
+            name_cell = worksheet.cell(row=row_index, column=3)
+            # If there is a match, update revision in the same row at the revision column
+            if name_cell.value and str(name_cell.value).strip() == drawing_Name:
+                rev_cell = worksheet.cell(row=name_cell.row, column=rev_column)  # Revision is updated at this cell coordinate
+                rev_cell.value = revision
+                print(f"Matched '{drawing_Name}'. Updated revision to '{revision}' at row {name_cell.row}.")
+                excel_Match = True
+                break  # Exit the loop for this drawing file because a match was found
+            
+        # If not a match, add new drawing name into new row
+        if not excel_Match :
+            print(f"No match found for drawing: {drawing_Name}. Adding new entry...")
+            # Find the next empty row in column C to add the new drawing
+            for empty_row in range(24, 151):
+                if worksheet.cell(row=empty_row, column=2).value is None:
+                    worksheet.cell(row=empty_row, column=1, value=project_No)  # Add project number
+                    worksheet.cell(row=empty_row, column=2, value=drawing_No)  # Add drawing number
+                    worksheet.cell(row=empty_row, column=3, value=drawing_Name)  # Add drawing name
+                    worksheet.cell(row=empty_row, column=rev_column, value=revision)  # Set initial revision to 1
+                    print(f"Added new drawing {drawing_Name} at row {empty_row} with revision {revision}.")                            
+                    break  # Exit the loop after adding the new drawing to avoid multiple additions
+
+
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
