@@ -3,6 +3,7 @@ import re
 import shutil
 import glob
 from openpyxl import load_workbook
+import win32com.client
 
 def find_excel_file():
     print("Searching for Transmittal Excel file...")        
@@ -245,5 +246,47 @@ def Save_as_PDF():
 
     print(f"\nConverting '{sheet_name}' from '{excel_path}' to PDF using MS Excel...")
 
+    excel = None  # Initialize excel variable
+    try:
+        # Get absolute paths, which are required for COM
+        excel_abs_path = os.path.abspath(excel_path)
+        pdf_abs_path = os.path.abspath(pdf_path)
+
+        # Start an instance of Excel
+        excel = win32com.client.Dispatch("Excel.Application")
+        # Keep the application hidden
+        excel.Visible = False
+
+        # Open the workbook
+        workbook = excel.Workbooks.Open(excel_abs_path)
+
+        # Select the specific worksheet
+        worksheet = workbook.Worksheets[sheet_name]
+
+        # --- Set Page Setup ---
+        # xlPaperA4 has a value of 9
+        worksheet.PageSetup.PaperSize = 9 
+        # Default margins are used automatically.
+
+        # --- Export to PDF ---
+        # xlTypePDF has a value of 0
+        worksheet.ExportAsFixedFormat(0, pdf_abs_path)
+        
+        print(f"Successfully saved PDF to '{pdf_abs_path}'")
+
+    except Exception as e:
+        print(f"An error occurred during PDF conversion: {e}")
+    finally:
+        # CRITICAL: Always ensure Excel is closed properly
+        if excel:
+            if 'workbook' in locals() and workbook:
+                workbook.Close(SaveChanges=False)
+            excel.Quit()
+            # Release the COM object
+            del excel
+
 if __name__ == "__main__":    
-    print("Transmit_Auto1000 Start")
+    print("Transmit_Auto1000 Start")    
+    Save_as_PDF()
+    print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
+    print("Version 5.0 - 21/10/2025")
