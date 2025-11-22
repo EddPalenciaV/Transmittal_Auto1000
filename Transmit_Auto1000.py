@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import glob
+from openpyxl import load_workbook
 
 def find_excel_file():
     print("Searching for Transmittal Excel file...")        
@@ -93,6 +94,17 @@ def Request_Get_Date():
         else:
             print("Invalid choice. Please enter a number between 1 and 3.")
             input("Press Enter to continue...")
+    # Load transmittal Excel file
+    transmittal = find_excel_file()
+    workbook = load_workbook(transmittal)
+
+    # Check if 'CIVIL' sheet exists
+    if 'CIVIL' in workbook.sheetnames:
+        print("CIVIL sheet found.")
+        worksheet = workbook['CIVIL']                       
+    else:
+        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")
+
 
 
 if __name__ == "__main__":    
