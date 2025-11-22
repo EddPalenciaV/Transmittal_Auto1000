@@ -5,6 +5,24 @@ import glob
 from openpyxl import load_workbook
 import win32com.client
 
+########Testing only###########
+def testing_only():
+    transmittal = r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\Transmittal 251021.xlsx"
+    pattern = r"transmittal (.*)\.xlsx"
+    match = re.search(pattern, transmittal, re.IGNORECASE)
+    print(f"group 0 = {match.group(0)}")
+    print(f"group 1 = {match.group(1)}")
+
+    if match:
+        transmittal_filename = match.group(1)
+    else:
+        print("Transmittal filename does not match expected pattern.")
+        print("Please check the name matches: Transmittal YYMMDD.xlsx")
+        
+########Testing only###########
+
+# TODO: Search for transmittal with date in the name
+# TODO: Search for latest modified transmittal file instead of first found
 def find_excel_file():
     print("Searching for Transmittal Excel file...")        
     source_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
@@ -127,6 +145,8 @@ def Request_Get_Date():
 
     return os.path.join(rootDirectory, output_filename)
 
+# TODO: Create or Modify Overwrite_Transmittal() so it includes Structural and Architectural sheets    
+# TODO: Add new drawings in numerical order adding new rows as needed
 def Overwrite_Transmittal():
     # Load transmittal Excel file
     print("Loading new Transmittal Excel file...")
@@ -286,6 +306,7 @@ def Save_as_PDF():
             del excel
 
 if __name__ == "__main__":    
+    #testing_only()
     print("Transmit_Auto1000 Start")    
     Save_as_PDF()
     print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
