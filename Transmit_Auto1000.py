@@ -224,5 +224,26 @@ def Overwrite_Transmittal():
 
     return transmittal
 
+def Save_as_PDF():
+    """
+    Saves a specific worksheet from an Excel file to a PDF with A4 format
+    by controlling the Excel application via COM.
+    """
+    excel_path = Overwrite_Transmittal()
+    sheet_name = "CIVIL"
+
+    currentDir = os.path.abspath(".")
+    pattern = r"transmittal (.*)\.xlsx"
+    match = re.search(pattern, excel_path, re.IGNORECASE)
+    if match:
+        pdf_name = f"Transmittal {match.group(1)}.pdf"
+        pdf_path = os.path.join(currentDir, pdf_name)
+    else:
+        print("Transmittal filename does not match expected pattern.")
+        print("Please check the name matches: Transmittal YYMMDD.xlsx")
+        return
+
+    print(f"\nConverting '{sheet_name}' from '{excel_path}' to PDF using MS Excel...")
+
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
