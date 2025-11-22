@@ -47,5 +47,33 @@ def Catch_Drawings():
         
         return None
 
+def Extract_Names_From_Drawings():
+    # Get raw list of PDF drawing names
+    rawlist_PDF = Catch_Drawings()
+    # Extract just drawing names from PDF list
+    list_PDF = []
+    #define pattern that catches any string content between "] " and ".pdf"
+    pattern = r"\] (.*)\.pdf"
+    if rawlist_PDF:
+        for drawing in rawlist_PDF:
+            match = re.search(pattern, drawing)
+            if match:
+                catched_name = match.group(1)
+                list_PDF.append(catched_name)
+        return list_PDF
+    else:
+        return None
+    
+def Request_Get_Date():
+    rootDirectory = os.path.abspath(".")
+    print("Choose a date for the transmittal (DD/MM/YY), from the following options: ")
+    while True:
+        # Print the menu options        
+        print("1. Today's Date")
+        print("2. Enter a Custom Date")
+
+        # Prompt for user input
+        choice = input("Enter your choice (1-3): ")
+
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
