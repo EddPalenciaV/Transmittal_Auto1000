@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import glob
 
 def find_excel_file():
     print("Searching for Transmittal Excel file...")        
@@ -30,6 +31,21 @@ def find_excel_file():
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
     return os.path.join(rootDirectory, "Transmittal_TEMPLATE.xlsx")
+
+def Catch_Drawings():
+    print("Searching for drawings in current folder and subfolders...")    
+    # Define pattern of file name that ends in .pdf and has a character or digit inside square brackets
+    pattern = "*[[]?[]]*.pdf"
+    
+    # Store found PDF drawings in a list
+    rawListDrawings = glob.glob(pattern)
+
+    if rawListDrawings:
+        print(f"Found {len(rawListDrawings)} drawings in the current folder.") 
+        return rawListDrawings
+    else:
+        
+        return None
 
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
