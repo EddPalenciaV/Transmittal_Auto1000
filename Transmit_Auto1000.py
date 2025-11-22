@@ -80,7 +80,19 @@ def Request_Get_Date():
             now = datetime.now()
             date_string = now.strftime("%d/%m/%y")
             break
-
+        elif choice == '2':
+            date_string = input("Enter the date in the following format DD/MM/YY : ")
+            if len(date_string) != 10 or date_string[2] != '/' or date_string[5] != '/':
+                print("Invalid date format. Please try again.")
+                input("Press Enter to continue...")
+                continue
+            break
+        elif choice == '3':
+            print("Exiting the program. Goodbye!")
+            break  # Exit the while loop
+        else:
+            print("Invalid choice. Please enter a number between 1 and 3.")
+            input("Press Enter to continue...")
 
 
 if __name__ == "__main__":    
