@@ -74,6 +74,14 @@ def Request_Get_Date():
 
         # Prompt for user input
         choice = input("Enter your choice (1-3): ")
+        # Activate choice
+        if choice == '1':
+            from datetime import datetime
+            now = datetime.now()
+            date_string = now.strftime("%d/%m/%y")
+            break
+
+
 
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
