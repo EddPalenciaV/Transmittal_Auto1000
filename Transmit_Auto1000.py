@@ -119,6 +119,12 @@ def Request_Get_Date():
                     worksheet.cell(row=target_cell, column=cell.column, value=part)                    
                 break   
 
+    # Save the modified workbook    
+    output_filename = f"Transmittal {fileName_date}.xlsx"
+    workbook.save(output_filename)
+    print(f"Transmittal excel file saved as '{output_filename}'.")
+
+    return os.path.join(rootDirectory, output_filename)
 
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
