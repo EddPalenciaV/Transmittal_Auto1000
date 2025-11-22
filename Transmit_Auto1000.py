@@ -105,6 +105,19 @@ def Request_Get_Date():
     else:
         raise ValueError("Sheet 'CIVIL' not found in the Excel file.")
 
+    # Get the date from user and overwrite empty date cells    
+    dateStrings = date_string.split('/')
+    dateParts = [int(s) for s in dateStrings]
+    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
+    dateRow_index = 1    
+    for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
+        for cell in date_cells:
+            if cell.value is None:
+                print("New date cell is: " + cell.coordinate)
+                for i, part in enumerate(dateParts):
+                    target_cell = dateRow_index + i
+                    worksheet.cell(row=target_cell, column=cell.column, value=part)                    
+                break   
 
 
 if __name__ == "__main__":    
