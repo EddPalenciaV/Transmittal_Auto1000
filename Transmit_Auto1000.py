@@ -126,5 +126,31 @@ def Request_Get_Date():
 
     return os.path.join(rootDirectory, output_filename)
 
+def Overwrite_Transmittal():
+    # Load transmittal Excel file
+    print("Loading new Transmittal Excel file...")
+    transmittal = Request_Get_Date()
+    workbook = load_workbook(transmittal)
+
+    # Check if 'CIVIL' sheet exists. Select it if it does
+    if 'CIVIL' in workbook.sheetnames:
+        print("CIVIL sheet found.")
+        worksheet = workbook['CIVIL']                       
+    else:
+        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")      
+
+    # Get revision column index from Excel by last date reference
+    dateRow_index = 1
+    for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
+        for cell in date_cells:
+            if cell.value is None:
+                rev_column = cell.column - 1  # Revision column is the one before the empty cell
+                break # If found, Exit inner loop
+        if rev_column:
+            break # Exit outer loop as well
+    if not rev_column:
+        print("Error: Could not determine the revision column.")
+        return # Exit the function if NO revision column is found
+
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
