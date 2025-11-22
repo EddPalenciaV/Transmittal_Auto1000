@@ -208,6 +208,21 @@ def Overwrite_Transmittal():
                     print(f"Added new drawing {drawing_Name} at row {empty_row} with revision {revision}.")                            
                     break  # Exit the loop after adding the new drawing to avoid multiple additions
 
+    # Extract transmittal file name from path
+    pattern = r"transmittal \d{6}\.xlsx"
+    match = re.search(pattern, transmittal, re.IGNORECASE)
+    if match:
+        transmittal_filename = match.group()
+    else:
+        print("Transmittal filename does not match expected pattern.")
+        print("Please check the name matches: Transmittal YYMMDD.xlsx")
+        return
+    
+    # Save the modified workbook    
+    workbook.save(transmittal_filename)
+    print(f"\nChanges saved in Transmittal excel '{transmittal_filename}'.")
+
+    return transmittal
 
 if __name__ == "__main__":    
     print("Transmit_Auto1000 Start")
