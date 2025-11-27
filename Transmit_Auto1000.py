@@ -8,17 +8,39 @@ import win32com.client
 
 ########Testing only###########
 def testing_only():
-    transmittal = r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\Transmittal 251021.xlsx"
-    pattern = r"transmittal (.*)\.xlsx"
-    match = re.search(pattern, transmittal, re.IGNORECASE)
-    print(f"group 0 = {match.group(0)}")
-    print(f"group 1 = {match.group(1)}")
+    # Load transmittal Excel file
+    transmittal = find_excel_file()
+    workbook = load_workbook(transmittal)
 
-    if match:
-        transmittal_filename = match.group(1)
+    # Check if 'CIVIL' sheet exists
+    if 'CIVIL' in workbook.sheetnames:
+        print("CIVIL sheet found.")
+        worksheet = workbook['CIVIL']                       
     else:
-        print("Transmittal filename does not match expected pattern.")
-        print("Please check the name matches: Transmittal YYMMDD.xlsx")
+        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")
+
+    date_string = "20/08/24"  # Example date for testing
+    # Get the date from user and overwrite empty date cells    
+    dateStrings = date_string.split('/')
+    dateParts = [s for s in dateStrings]
+    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
+    dateRow_index = 1    
+    for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
+        for cell in date_cells:
+            #TODO: Add condition to check if date already exists and use that column for updating revisions
+            if cell.value == int(dateParts[0]) and worksheet.cell(row=cell.row + 1, column=cell.column).value == int(dateParts[1]) and worksheet.cell(row=cell.row + 2, column=cell.column).value == int(dateParts[2]):
+                # and worksheet.cell(row=cell.row + 1, column=cell.column).value == dateParts[1] and worksheet.cell(row=cell.row + 2, column=cell.column).value == dateParts[2]
+                print(f"Date {date_string} already exists in the transmittal at cell {cell.coordinate}.")
+                print("Column: " + cell.coordinate + " will be used for revisions update.")
+                sys.exit(0)
+            elif cell.value is None:
+                print("New date cell is: " + cell.coordinate)
+                for i, part in enumerate(dateParts):
+                    target_cell = dateRow_index + i
+                    worksheet.cell(row=target_cell, column=cell.column, value=part)                    
+                break
+            else:
+                continue
         
 ########Testing only###########
 
@@ -64,9 +86,8 @@ def Catch_Drawings():
     if rawListDrawings:
         print(f"Found {len(rawListDrawings)} drawings in the current folder.") 
         return rawListDrawings
-    else:
-        
-        return None
+    else:        
+        raise ValueError("No PDF drawings found to process.")        
 
 def Extract_Names_From_Drawings():
     # Get raw list of PDF drawing names
@@ -128,19 +149,25 @@ def Request_Get_Date():
 
     # Get the date from user and overwrite empty date cells    
     dateStrings = date_string.split('/')
-    dateParts = [s for s in dateStrings]
-    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
+    dateParts_int = [int(s) for s in dateStrings]    
     dateRow_index = 1    
     for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
         for cell in date_cells:
-            if cell.value is None:
+            #TODO: Add condition to check if date already exists and use that column for updating revisions
+            if cell.value == dateParts_int[0] and worksheet.cell(row=cell.row + 1, column=cell.column).value == dateParts_int[1] and worksheet.cell(row=cell.row + 2, column=cell.column).value == dateParts_int[2]:
+                print(f"Date {date_string} already exists in the transmittal at cell {cell.coordinate}.")                                
+                print(f"Column: {cell.column} will be used for revisions update.")
+                break            
+            elif cell.value is None:
                 print("New date cell is: " + cell.coordinate)
                 for i, part in enumerate(dateParts):
                     target_cell = dateRow_index + i
                     worksheet.cell(row=target_cell, column=cell.column, value=part)                    
-                break   
+                break
 
-    # Save the modified workbook    
+    # Save the modified workbook
+    dateParts = [s for s in dateStrings]
+    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
     output_filename = f"Transmittal {fileName_date}.xlsx"
     workbook.save(output_filename)
     print(f"Transmittal excel file saved as '{output_filename}'.")
@@ -173,15 +200,11 @@ def Overwrite_Transmittal():
             break # Exit outer loop as well
     if not rev_column:
         print("Error: Could not determine the revision column.")
-        return # Exit the function if NO revision column is found
+        raise ValueError("Revision column not found in worksheet.")
 
     ######### Compare PDF vs Excel names, update revision when matched and add new drawings ##########
     # Get revision from raw list of PDF drawings
     rawlist_PDF = Catch_Drawings()
-
-    if not rawlist_PDF:
-        print("No drawings found to process.")
-        return # Exit the function if no drawings found
 
     for file_Name in rawlist_PDF:
         # Define regex patterns to extract project number, revision, and drawing name
