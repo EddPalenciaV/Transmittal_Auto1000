@@ -1,3 +1,4 @@
+import sys
 import os
 import re
 import shutil
@@ -91,6 +92,7 @@ def Request_Get_Date():
         # Print the menu options        
         print("1. Today's Date")
         print("2. Enter a Custom Date")
+        print("3. Exit Program")
 
         # Prompt for user input
         choice = input("Enter your choice (1-3): ")
@@ -102,14 +104,14 @@ def Request_Get_Date():
             break
         elif choice == '2':
             date_string = input("Enter the date in the following format DD/MM/YY : ")
-            if len(date_string) != 10 or date_string[2] != '/' or date_string[5] != '/':
+            if len(date_string) != 8 or date_string[2] != '/' or date_string[5] != '/':
                 print("Invalid date format. Please try again.")
                 input("Press Enter to continue...")
                 continue
             break
         elif choice == '3':
             print("Exiting the program. Goodbye!")
-            break  # Exit the while loop
+            sys.exit(0)
         else:
             print("Invalid choice. Please enter a number between 1 and 3.")
             input("Press Enter to continue...")
@@ -126,7 +128,7 @@ def Request_Get_Date():
 
     # Get the date from user and overwrite empty date cells    
     dateStrings = date_string.split('/')
-    dateParts = [int(s) for s in dateStrings]
+    dateParts = [s for s in dateStrings]
     fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
     dateRow_index = 1    
     for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
@@ -251,6 +253,11 @@ def Save_as_PDF():
     by controlling the Excel application via COM.
     """
     excel_path = Overwrite_Transmittal()
+
+    if excel_path is None:
+        print("Error: Could not generate transmittal file. Aborting PDF export.")
+        return
+
     sheet_name = "CIVIL"
 
     currentDir = os.path.abspath(".")
