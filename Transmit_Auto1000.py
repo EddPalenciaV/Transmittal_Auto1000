@@ -4,57 +4,53 @@ import re
 import shutil
 import glob
 from openpyxl import load_workbook
+from pathlib import Path
 import win32com.client
 
 ########Testing only###########
 def testing_only():
-    # Load transmittal Excel file
-    transmittal = find_excel_file()
-    workbook = load_workbook(transmittal)
+    print("Searching for Transmittal Excel file...")        
+    template_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
+    rootDirectory = os.path.abspath(".")
+    rootKey = "."
+    transmitt_pattern = r"transmittal"
+    date_pattern = r"\d{6}"
+    excel_pattern = r"\.xlsx$"
+    dated_transmittals = []
 
-    # Check if 'CIVIL' sheet exists
-    if 'CIVIL' in workbook.sheetnames:
-        print("CIVIL sheet found.")
-        worksheet = workbook['CIVIL']                       
-    else:
-        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")
+    for currentDir, subDir, fileNames in os.walk(rootKey):        
+        for file in fileNames:
+            transmitt_match = re.search(transmitt_pattern, file, re.IGNORECASE)
+            date_match = re.search(date_pattern, file)
+            excel_match = re.search(excel_pattern, file, re.IGNORECASE)
+            if excel_match and date_match and transmitt_match:
+                path_transmittal = os.path.join(currentDir, file)
+                dated_transmittals.append(path_transmittal)
+    
+    transmitt_pattern = re.compile(r"transmittal[ _-]\d{6}\.(?:xlsx)$", re.IGNORECASE)
+    root_path = Path(rootKey)
+    transmitt_match = []
+    for p in root_path.rglob("*"):
+        if p.is_file() and transmitt_pattern.search(p.name):
+            transmitt_match.append(str(p.resolve()))
+    
+    if not transmitt_match:
+        shutil.copy(template_file, rootDirectory)
 
-    date_string = "20/08/24"  # Example date for testing
-    # Get the date from user and overwrite empty date cells    
-    dateStrings = date_string.split('/')
-    dateParts = [s for s in dateStrings]
-    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
-    dateRow_index = 1    
-    for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
-        for cell in date_cells:
-            #TODO: Add condition to check if date already exists and use that column for updating revisions
-            if cell.value == int(dateParts[0]) and worksheet.cell(row=cell.row + 1, column=cell.column).value == int(dateParts[1]) and worksheet.cell(row=cell.row + 2, column=cell.column).value == int(dateParts[2]):
-                # and worksheet.cell(row=cell.row + 1, column=cell.column).value == dateParts[1] and worksheet.cell(row=cell.row + 2, column=cell.column).value == dateParts[2]
-                print(f"Date {date_string} already exists in the transmittal at cell {cell.coordinate}.")
-                print("Column: " + cell.coordinate + " will be used for revisions update.")
-                sys.exit(0)
-            elif cell.value is None:
-                print("New date cell is: " + cell.coordinate)
-                for i, part in enumerate(dateParts):
-                    target_cell = dateRow_index + i
-                    worksheet.cell(row=target_cell, column=cell.column, value=part)                    
-                break
-            else:
-                continue
-        
 ########Testing only###########
 
 # TODO: Search for transmittal with date in the name
 # TODO: Search for latest modified transmittal file instead of first found
 def find_excel_file():
     print("Searching for Transmittal Excel file...")        
-    source_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
+    template_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
     rootDirectory = os.path.abspath(".")
     rootKey = "."
     transmittal_excel = "Transmittal.xlsx"
     for currentDir, subDir, fileNames in os.walk(rootKey):
         for file in fileNames:
             transmittal_excel = os.path.join(currentDir, file)
+            # INSERT REGEX CONDITIONAL HERE TO CATCH DATED TRANSMITTAL FILES
             if file == "Transmittal.xlsx" and currentDir != rootKey:
                 shutil.copy(transmittal_excel, rootDirectory)
                 print("Transmittal Excel file found and moved into root directory.")                
@@ -65,8 +61,8 @@ def find_excel_file():
 
     print("Transmittal Excel file not found. Copying from source...")
     try:
-        shutil.copy(source_file, rootDirectory)
-        print(f"Template Transmittal'{source_file}' copied successfully to '{rootDirectory}'")
+        shutil.copy(template_file, rootDirectory)
+        print(f"Template Transmittal'{template_file}' copied successfully to '{rootDirectory}'")
     except FileNotFoundError:
         print("Error: The source file was not found.")
     except PermissionError:
@@ -153,7 +149,7 @@ def Request_Get_Date():
     dateRow_index = 1    
     for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
         for cell in date_cells:
-            #TODO: Add condition to check if date already exists and use that column for updating revisions
+            # Check if date already exists and use that column for updating revisions
             if cell.value == dateParts_int[0] and worksheet.cell(row=cell.row + 1, column=cell.column).value == dateParts_int[1] and worksheet.cell(row=cell.row + 2, column=cell.column).value == dateParts_int[2]:
                 print(f"Date {date_string} already exists in the transmittal at cell {cell.coordinate}.")                                
                 print(f"Column: {cell.column} will be used for revisions update.")
@@ -336,8 +332,8 @@ def Save_as_PDF():
             del excel
 
 if __name__ == "__main__":    
-    #testing_only()
+    testing_only()
     print("Transmit_Auto1000 Start")    
-    Save_as_PDF()
+    #Save_as_PDF()
     print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
     print("Version 5.0 - 21/10/2025")
