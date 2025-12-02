@@ -5,6 +5,7 @@ import shutil
 import glob
 from openpyxl import load_workbook
 from pathlib import Path
+from datetime import datetime
 import win32com.client
 
 ########Testing only###########
@@ -34,32 +35,55 @@ def testing_only():
         if p.is_file() and transmitt_pattern.search(p.name):
             transmitt_match.append(str(p.resolve()))
     
-    if not transmitt_match:
-        shutil.copy(template_file, rootDirectory)
+    transmitt_and_modtimes = []    
+    if transmitt_match:
+        for file_path in transmitt_match:
+            mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+            transmitt_and_modtimes.append((file_path, mod_time))
+            #print(f"{file_path}: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if transmitt_and_modtimes:
+        newest_file = max(transmitt_and_modtimes, key=lambda x: x[1])
+        print(f"\nThe latest transmittal excel is: {newest_file[0]}")
+        shutil.copy(newest_file[0], rootDirectory)
+        #return newest_file[0]
 
 ########Testing only###########
 
-# TODO: Search for transmittal with date in the name
-# TODO: Search for latest modified transmittal file instead of first found
-def find_excel_file():
+
+def find_excel_transmittal():
     print("Searching for Transmittal Excel file...")        
     template_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
     rootDirectory = os.path.abspath(".")
     rootKey = "."
-    transmittal_excel = "Transmittal.xlsx"
-    for currentDir, subDir, fileNames in os.walk(rootKey):
-        for file in fileNames:
-            transmittal_excel = os.path.join(currentDir, file)
-            # INSERT REGEX CONDITIONAL HERE TO CATCH DATED TRANSMITTAL FILES
-            if file == "Transmittal.xlsx" and currentDir != rootKey:
-                shutil.copy(transmittal_excel, rootDirectory)
-                print("Transmittal Excel file found and moved into root directory.")                
-                return os.path.join(rootDirectory, "Transmittal.xlsx")
-            if file == "Transmittal.xlsx" and currentDir == rootKey:
-                print("Transmittal Excel file found in root directory.")
-                return os.path.join(rootDirectory, "Transmittal.xlsx")
+    
+    # Find and list all transmittal files with date in the name
+    transmitt_pattern = re.compile(r"transmittal[ _-]\d{6}\.(?:xlsx)$", re.IGNORECASE)
+    root_path = Path(rootKey)
+    transmitt_match = []
+    for p in root_path.rglob("*"):
+        if p.is_file() and transmitt_pattern.search(p.name):
+            transmitt_match.append(str(p.resolve()))
 
-    print("Transmittal Excel file not found. Copying from source...")
+    # Get modification times and append to list
+    transmitt_and_modtimes = []    
+    if transmitt_match:
+        for file_path in transmitt_match:
+            mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+            transmitt_and_modtimes.append((file_path, mod_time))
+            #print(f"{file_path}: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Find and copy the latest modified transmittal file to root directory
+    if transmitt_and_modtimes:
+        latest_transmittal = max(transmitt_and_modtimes, key=lambda x: x[1])
+        print(f"Transmittal files found... \nThe latest transmittal excel is: {latest_transmittal[0]}")
+        shutil.copy(latest_transmittal[0], rootDirectory)
+        print("Latest Transmittal Excel file moved into root directory.")
+        return os.path.join(rootDirectory, os.path.basename(latest_transmittal[0]))
+    else:
+        print("Transmittal Excel file not found. Copying from Template source...")
+    
+    # Copy template file if no transmittal found
     try:
         shutil.copy(template_file, rootDirectory)
         print(f"Template Transmittal'{template_file}' copied successfully to '{rootDirectory}'")
@@ -133,7 +157,7 @@ def Request_Get_Date():
             print("Invalid choice. Please enter a number between 1 and 3.")
             input("Press Enter to continue...")
     # Load transmittal Excel file
-    transmittal = find_excel_file()
+    transmittal = find_excel_transmittal()
     workbook = load_workbook(transmittal)
 
     # Check if 'CIVIL' sheet exists
@@ -266,6 +290,7 @@ def Overwrite_Transmittal():
 
     return transmittal
 
+#TODO: change transmittal pattern to include date in the name
 def Save_as_PDF():
     """
     Saves a specific worksheet from an Excel file to a PDF with A4 format
