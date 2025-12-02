@@ -290,7 +290,6 @@ def Overwrite_Transmittal():
 
     return transmittal
 
-#TODO: change transmittal pattern to include date in the name
 def Save_as_PDF():
     """
     Saves a specific worksheet from an Excel file to a PDF with A4 format
@@ -305,7 +304,7 @@ def Save_as_PDF():
     sheet_name = "CIVIL"
 
     currentDir = os.path.abspath(".")
-    pattern = r"transmittal (.*)\.xlsx"
+    pattern = r"\btransmittal (\d{6})\.xlsx\b"
     match = re.search(pattern, excel_path, re.IGNORECASE)
     if match:
         pdf_name = f"Transmittal {match.group(1)}.pdf"
