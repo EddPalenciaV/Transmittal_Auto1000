@@ -194,7 +194,6 @@ def Request_Get_Date():
 
     return os.path.join(rootDirectory, output_filename)
 
-# TODO: Create or Modify Overwrite_Transmittal() so it includes Structural and Architectural sheets    
 # TODO: Add new drawings in numerical order adding new rows as needed
 def Overwrite_Transmittal():
     # Load transmittal Excel file
@@ -202,12 +201,47 @@ def Overwrite_Transmittal():
     transmittal = Request_Get_Date()
     workbook = load_workbook(transmittal)
 
-    # Check if 'CIVIL' sheet exists. Select it if it does
-    if 'CIVIL' in workbook.sheetnames:
-        print("CIVIL sheet found.")
-        worksheet = workbook['CIVIL']                       
-    else:
-        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")      
+    print("Choose sheet to process:")
+    while True:
+        # Print the menu options        
+        print("1. CIVIL")
+        print("2. STRUCTURE")
+        print("3. ARCHITECT")
+        print("4. Exit Program")
+
+        # Prompt for user input
+        choice = input("Enter your choice (1-3): ")
+        # Activate choice
+        if choice == '1':
+            # Check if 'CIVIL' sheet exists. Select it if it does
+            if 'CIVIL' in workbook.sheetnames:
+                print("CIVIL sheet found.")
+                worksheet = workbook['CIVIL']
+            else:
+                raise ValueError("Sheet 'CIVIL' not found in the Excel file. Check sheet name spelling") 
+            break
+        elif choice == '2':
+            # Check if 'ARCHITECT' sheet exists. Select it if it does
+            if 'ARCHITECT' in workbook.sheetnames:
+                print("ARCHITECT sheet found.")
+                worksheet = workbook['ARCHITECT']
+            else:
+                raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
+            break
+        elif choice == '3':
+            # Check if 'STRUCTURE' sheet exists. Select it if it does
+            if 'STRUCTURE' in workbook.sheetnames:
+                print("STRUCTURE sheet found.")
+                worksheet = workbook['STRUCTURE']
+            else:
+                raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
+            break
+        elif choice == '4':
+            print("Exiting the program. Goodbye!")
+            sys.exit(0)
+        else:
+            print("Invalid choice. Please enter a number between 1 and 3.")
+            input("Press Enter to continue...")
 
     # Get revision column index from Excel by last date reference
     dateRow_index = 1
