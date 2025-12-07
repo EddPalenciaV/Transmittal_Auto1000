@@ -280,7 +280,12 @@ def Overwrite_Transmittal():
         project_No = pjtNo_match.group(1).strip() 
         drawing_No = dwg_match.group(1).strip() 
         revision = rev_match.group(1).strip() 
-        drawing_Name = name_match.group(1).strip() 
+        drawing_Name = name_match.group(1).strip()
+
+        # Get drawing group number and count number (e.g. drawing C-05-11, has group 5 and count 11)
+        drawing_No_parts = drawing_No.split('-')
+        drawing_Group = int(drawing_No_parts[1]) # e.g., 5
+        drawing_Count = int(drawing_No_parts[2]) # e.g., 11
         
         # Compare drawing names from list_PDF and drawing names from cells in Excel
         excel_Match = False # Flag to track if the drawing name matched in Excel
@@ -294,19 +299,68 @@ def Overwrite_Transmittal():
                 print(f"Matched '{drawing_Name}'. Updated revision to '{revision}' at row {name_cell.row}.")
                 excel_Match = True
                 break  # Exit the loop for this drawing file because a match was found
-            
+
         # If not a match, add new drawing name into new row
+        match_counter = 0
         if not excel_Match :
             print(f"No match found for drawing: {drawing_Name}. Adding new entry...")
-            # Find the next empty row in column C to add the new drawing
-            for empty_row in range(24, 151):
-                if worksheet.cell(row=empty_row, column=2).value is None:
-                    worksheet.cell(row=empty_row, column=1, value=project_No)  # Add project number
-                    worksheet.cell(row=empty_row, column=2, value=drawing_No)  # Add drawing number
-                    worksheet.cell(row=empty_row, column=3, value=drawing_Name)  # Add drawing name
-                    worksheet.cell(row=empty_row, column=rev_column, value=revision)  # Set initial revision to 1
-                    print(f"Added new drawing {drawing_Name} at row {empty_row} with revision {revision}.")                            
-                    break  # Exit the loop after adding the new drawing to avoid multiple additions
+            # Find drawing number in column B to determine where to add new drawing
+            for row_index in range(24, 151):
+                # Get drawing group number and count number from cell value (e.g. drawing C-05-11, has group 5 and count 11)
+                drawing_No_cell = worksheet.cell(row=row_index, column=2).value
+                if not drawing_No_cell:
+                    continue
+                parts = str(drawing_No_cell).split('-')
+                # defensive: ensure expected format
+                if len(parts) < 3:
+                    continue
+                try:
+                    drawing_Group_cell = int(parts[1])
+                except ValueError:
+                    continue
+
+                if drawing_Group == drawing_Group_cell:
+                    match_counter += 1
+                    last_match_row = row_index  # update each time a match is found
+            
+            if match_counter > 0:
+                # There are existing drawings in the same group, find correct position to insert
+                for row_index in range(24, 151):
+                    drawing_No_cell = worksheet.cell(row=row_index, column=2).value
+                    drawing_No_parts_cell = drawing_No_cell.split('-')
+                    drawing_Group_cell = int(drawing_No_parts_cell[1]) # e.g., 5
+                    drawing_Count_cell = int(drawing_No_parts_cell[2]) # e.g., 11                    
+                    # Check where to insert new drawing if drawing_Count is less than existing ones
+                    if drawing_Group == drawing_Group_cell and drawing_Count < drawing_Count_cell:
+                        # Shift rows down to make space for new drawing
+                        worksheet.insert_rows(row_index)
+                        worksheet.cell(row=row_index, column=1, value=project_No)  # Add project number
+                        worksheet.cell(row=row_index, column=2, value=drawing_No)  # Add drawing number
+                        worksheet.cell(row=row_index, column=3, value=drawing_Name)  # Add drawing name
+                        worksheet.cell(row=row_index, column=rev_column, value=revision)  # Set revision from PDF
+                        print(f"Added new drawing {drawing_Name} at row {row_index} with revision {revision}.")                            
+                        break  # Exit the loop after adding the new drawing to avoid multiple additions
+                    elif row_index == last_match_row:
+                        # If reached last match row and no smaller count found, add after last match
+                        next_row = last_match_row + 1
+                        # Shift rows down to make space for new drawing
+                        worksheet.insert_rows(next_row)
+                        worksheet.cell(row=next_row, column=1, value=project_No)  # Add project number
+                        worksheet.cell(row=next_row, column=2, value=drawing_No)  # Add drawing number
+                        worksheet.cell(row=next_row, column=3, value=drawing_Name)  # Add drawing name
+                        worksheet.cell(row=next_row, column=rev_column, value=revision)  # Set revision from PDF
+                        print(f"Added new drawing {drawing_Name} at row {next_row} with revision {revision}.")                            
+                        break  # Exit the loop after adding the new drawing to avoid multiple additions
+            else:
+                # No existing drawings in the same group, add to the first empty row found
+                for empty_row in range(24, 151):
+                    if worksheet.cell(row=empty_row, column=2).value is None:
+                        worksheet.cell(row=empty_row, column=1, value=project_No)  # Add project number
+                        worksheet.cell(row=empty_row, column=2, value=drawing_No)  # Add drawing number
+                        worksheet.cell(row=empty_row, column=3, value=drawing_Name)  # Add drawing name
+                        worksheet.cell(row=empty_row, column=rev_column, value=revision)  # Set initial revision to 1
+                        print(f"Added new drawing {drawing_Name} at row {empty_row} with revision {revision}.")                            
+                        break  # Exit the loop after adding the new drawing to avoid multiple additions
 
     # Extract transmittal file name from path
     pattern = r"transmittal \d{6}\.xlsx"
