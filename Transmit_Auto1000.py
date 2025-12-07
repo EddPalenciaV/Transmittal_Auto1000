@@ -262,7 +262,7 @@ def Overwrite_Transmittal():
 
     for file_Name in rawlist_PDF:
         # Define regex patterns to extract project number, revision, and drawing name
-        pjtNo_pattern = r"(.*)-C" # Pattern to catch anything before "["
+        pjtNo_pattern = r"(.*)-[A-Z]" # Pattern to catch anything before department letter (C, A or S) with hyphen)
         dwg_pattern = r"\d{5}-(.*) \[" # Pattern to catch anything between 5 digits with a hyphen and " ["
         rev_pattern = r"\[(.*)\]" # Pattern to catch anything between "[ " and "]"        
         name_pattern = r"\] (.*)\.pdf" # Pattern to catch anything between "] " and ".pdf"
