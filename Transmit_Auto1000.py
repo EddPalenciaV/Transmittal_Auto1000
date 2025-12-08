@@ -76,10 +76,20 @@ def find_excel_transmittal():
     # Find and copy the latest modified transmittal file to root directory
     if transmitt_and_modtimes:
         latest_transmittal = max(transmitt_and_modtimes, key=lambda x: x[1])
-        print(f"Transmittal files found... \nThe latest transmittal excel is: {latest_transmittal[0]}")
-        shutil.copy(latest_transmittal[0], rootDirectory)
-        print("Latest Transmittal Excel file moved into root directory.")
-        return os.path.join(rootDirectory, os.path.basename(latest_transmittal[0]))
+        latest_path = latest_transmittal[0]
+        latest_filename = os.path.basename(latest_path)
+        dest_path = os.path.join(rootDirectory, latest_filename)        
+        print(f"Transmittal files found... \nThe latest transmittal excel is: {latest_path}")
+
+        # Copy file only if source and destination are different
+        if os.path.abspath(latest_path) != os.path.abspath(dest_path):
+            shutil.copy(latest_path, rootDirectory)
+            print("Latest Transmittal Excel file moved into root directory.")
+            return dest_path
+        else:
+            # File is already in the root directory
+            print("Latest Transmittal file is already in the root directory.")
+            return latest_path
     else:
         print("Transmittal Excel file not found. Copying from Template source...")
     
@@ -98,16 +108,27 @@ def find_excel_transmittal():
 def Catch_Drawings():
     print("Searching for drawings in current folder and subfolders...")    
     # Define pattern of file name that ends in .pdf and has a character or digit inside square brackets
-    pattern = "*[[]?[]]*.pdf"
+    glob_pattern = "*[[]?*[]]*.pdf"
+
+    # Strict regex to validate bracket content
+    regex_pattern = re.compile(r"\[[A-Za-z0-9]+\].*\.pdf$", re.IGNORECASE)
+
+    # Find all PDFs matching the glob pattern
+    all_matches = glob.glob(glob_pattern)
     
-    # Store found PDF drawings in a list
-    rawListDrawings = glob.glob(pattern)
+    # Filter with regex to ensure bracket content is alphanumeric only
+    rawListDrawings = []
+    for file_path in all_matches:
+        filename = os.path.basename(file_path)
+        if regex_pattern.search(filename):
+            # Store full absolute path
+            rawListDrawings.append(os.path.abspath(file_path))
 
     if rawListDrawings:
         print(f"Found {len(rawListDrawings)} drawings in the current folder.") 
         return rawListDrawings
     else:        
-        raise ValueError("No PDF drawings found to process.")        
+        raise ValueError("No PDF drawings found to process.")
 
 def Extract_Names_From_Drawings():
     # Get raw list of PDF drawing names
@@ -180,7 +201,7 @@ def Request_Get_Date():
                 break            
             elif cell.value is None:
                 print("New date cell is: " + cell.coordinate)
-                for i, part in enumerate(dateParts):
+                for i, part in enumerate(dateParts_int):
                     target_cell = dateRow_index + i
                     worksheet.cell(row=target_cell, column=cell.column, value=part)                    
                 break
@@ -217,6 +238,7 @@ def Overwrite_Transmittal():
             if 'CIVIL' in workbook.sheetnames:
                 print("CIVIL sheet found.")
                 worksheet = workbook['CIVIL']
+                sheet_name = "CIVIL"
             else:
                 raise ValueError("Sheet 'CIVIL' not found in the Excel file. Check sheet name spelling") 
             break
@@ -225,6 +247,7 @@ def Overwrite_Transmittal():
             if 'ARCHITECT' in workbook.sheetnames:
                 print("ARCHITECT sheet found.")
                 worksheet = workbook['ARCHITECT']
+                sheet_name = "ARCHITECT"
             else:
                 raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
             break
@@ -233,6 +256,7 @@ def Overwrite_Transmittal():
             if 'STRUCTURE' in workbook.sheetnames:
                 print("STRUCTURE sheet found.")
                 worksheet = workbook['STRUCTURE']
+                sheet_name = "STRUCTURE"
             else:
                 raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
             break
@@ -261,6 +285,7 @@ def Overwrite_Transmittal():
     rawlist_PDF = Catch_Drawings()
 
     for file_Name in rawlist_PDF:
+        print(f"\nProcessing drawing file: {file_Name}")
         # Define regex patterns to extract project number, revision, and drawing name
         pjtNo_pattern = r"(.*)-[A-Z]" # Pattern to catch anything before department letter (C, A or S) with hyphen)
         dwg_pattern = r"\d{5}-(.*) \[" # Pattern to catch anything between 5 digits with a hyphen and " ["
@@ -376,20 +401,18 @@ def Overwrite_Transmittal():
     workbook.save(transmittal_filename)
     print(f"\nChanges saved in Transmittal excel '{transmittal_filename}'.")
 
-    return transmittal
+    return transmittal, sheet_name
 
 def Save_as_PDF():
     """
     Saves a specific worksheet from an Excel file to a PDF with A4 format
     by controlling the Excel application via COM.
     """
-    excel_path = Overwrite_Transmittal()
+    excel_path, sheet_name = Overwrite_Transmittal()
 
     if excel_path is None:
         print("Error: Could not generate transmittal file. Aborting PDF export.")
         return
-
-    sheet_name = "CIVIL"
 
     currentDir = os.path.abspath(".")
     pattern = r"\btransmittal (\d{6})\.xlsx\b"
@@ -407,16 +430,28 @@ def Save_as_PDF():
     excel = None  # Initialize excel variable
     try:
         # Get absolute paths, which are required for COM
-        excel_abs_path = os.path.abspath(excel_path)
-        pdf_abs_path = os.path.abspath(pdf_path)
+        excel_abs_path = os.path.abspath(excel_path).replace("/", "\\")
+        pdf_abs_path = os.path.abspath(pdf_path).replace("/", "\\")
+
+        # CRITICAL: Verify the file exists before attempting to open
+        if not os.path.exists(excel_abs_path):
+            print(f"Error: File not found at '{excel_abs_path}'")
+            return
+
+        print(f"Opening file: {excel_abs_path}")
 
         # Start an instance of Excel
         excel = win32com.client.Dispatch("Excel.Application")
         # Keep the application hidden
         excel.Visible = False
 
-        # Open the workbook
-        workbook = excel.Workbooks.Open(excel_abs_path)
+        # Open the workbook with error handling
+        try:
+            workbook = excel.Workbooks.Open(excel_abs_path)
+        except Exception as e:
+            print(f"Error opening workbook: {e}")
+            print(f"File path: {excel_abs_path}")
+            raise
 
         # Select the specific worksheet
         worksheet = workbook.Worksheets[sheet_name]
@@ -444,8 +479,8 @@ def Save_as_PDF():
             del excel
 
 if __name__ == "__main__":    
-    testing_only()
+    #testing_only()
     print("Transmit_Auto1000 Start")    
-    #Save_as_PDF()
+    Save_as_PDF()
     print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
     print("Version 5.0 - 21/10/2025")
