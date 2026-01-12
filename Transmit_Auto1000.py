@@ -4,8 +4,11 @@ import re
 import shutil
 import glob
 import time
+import gc
+import xlwings as xw
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
+from openpyxl.utils import get_column_letter
 from copy import copy
 from pathlib import Path
 from datetime import datetime
@@ -13,45 +16,245 @@ import win32com.client
 
 ########Testing only###########
 def testing_only():
-    print("Searching for Transmittal Excel file...")        
-    template_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
-    rootDirectory = os.path.abspath(".")
-    rootKey = "."
-    transmitt_pattern = r"transmittal"
-    date_pattern = r"\d{6}"
-    excel_pattern = r"\.xlsx$"
-    dated_transmittals = []
+    transmittal = r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\Book.xlsx"
+    workbook = load_workbook(transmittal)
+    worksheet = workbook['PERSONAL BUDGET']
 
-    for currentDir, subDir, fileNames in os.walk(rootKey):        
-        for file in fileNames:
-            transmitt_match = re.search(transmitt_pattern, file, re.IGNORECASE)
-            date_match = re.search(date_pattern, file)
-            excel_match = re.search(excel_pattern, file, re.IGNORECASE)
-            if excel_match and date_match and transmitt_match:
-                path_transmittal = os.path.join(currentDir, file)
-                dated_transmittals.append(path_transmittal)
-    
-    transmitt_pattern = re.compile(r"transmittal[ _-]\d{6}\.(?:xlsx)$", re.IGNORECASE)
-    root_path = Path(rootKey)
-    transmitt_match = []
-    for p in root_path.rglob("*"):
-        if p.is_file() and transmitt_pattern.search(p.name):
-            transmitt_match.append(str(p.resolve()))
-    
-    transmitt_and_modtimes = []    
-    if transmitt_match:
-        for file_path in transmitt_match:
-            mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-            transmitt_and_modtimes.append((file_path, mod_time))
-            #print(f"{file_path}: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    if transmitt_and_modtimes:
-        newest_file = max(transmitt_and_modtimes, key=lambda x: x[1])
-        print(f"\nThe latest transmittal excel is: {newest_file[0]}")
-        shutil.copy(newest_file[0], rootDirectory)
-        #return newest_file[0]
+    worksheet.insert_rows(5)
+    worksheet.insert_rows(12)
+    worksheet.insert_rows(20)
+    workbook.save(r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\test.xlsx")
 
 ########Testing only###########
+
+def unhide_sheet(ws):
+    """Unhide all rows and columns in a single worksheet."""
+    # Unhide rows (create row_dimensions entries if missing)
+    for r in range(1, ws.max_row + 1):
+        ws.row_dimensions[r].hidden = False
+
+    # Unhide columns
+    for c in range(1, ws.max_column + 1):
+        letter = get_column_letter(c)
+        ws.column_dimensions[letter].hidden = False
+
+def Xwing_Solution():
+    # Load transmittal Excel file
+    print("Loading new Transmittal Excel file...")
+    # transmittal = Request_Get_Date()
+    transmittal = r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\Transmittal 250418.xlsx"    
+    workbook = xw.Book(transmittal)
+
+    print("Choose sheet to process:")
+    while True:
+        # Print the menu options
+        print("1. CIVIL")
+        print("2. STRUCTURE")
+        print("3. ARCHITECT")
+        print("4. Exit Program")
+
+        # Prompt for user input
+        choice = input("Enter your choice (1-3): ")
+        # Activate choice
+        if choice == '1':
+            # Check if 'CIVIL' sheet exists. Select it if it does
+            if workbook.sheets["CIVIL"]:
+                print("CIVIL sheet found.")
+                worksheet = workbook.sheets["CIVIL"]
+                sheet_name = "CIVIL"
+            else:
+                raise ValueError("Sheet 'CIVIL' not found in the Excel file. Check sheet name spelling")
+            break
+        elif choice == '2':
+            # Check if 'ARCHITECT' sheet exists. Select it if it does
+            if workbook.sheets["ARCHITECT"]:
+                print("ARCHITECT sheet found.")
+                worksheet = workbook.sheets["ARCHITECT"]
+                sheet_name = "ARCHITECT"
+            else:
+                raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
+            break
+        elif choice == '3':
+            # Check if 'STRUCTURE' sheet exists. Select it if it does
+            if workbook.sheets["STRUCTURE"]:
+                print("STRUCTURE sheet found.")
+                worksheet = workbook.sheets["STRUCTURE"]
+                sheet_name = "STRUCTURE"
+            else:
+                raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
+            break
+        elif choice == '4':
+            print("Exiting the program. Goodbye!")
+            sys.exit(0)
+        else:
+            print("Invalid choice. Please enter a number between 1 and 3.")
+            input("Press Enter to continue...")
+
+
+    # Get revision column index from Excel by last date reference
+    rev_column = None
+    dateRow_index = 1
+    for col_index in range(5, 31):
+        cell = worksheet.range((dateRow_index, col_index))  # (row, col) tuple
+        if cell.value is None:
+            rev_column = cell.column - 1  # Revision column is the one before the empty cell
+            print(f"Found revision column at index: {rev_column}")
+            break # If found, Exit inner loop
+    
+    if rev_column is None:        
+        raise ValueError("Revision column not found in worksheet.")
+
+    ######### Compare PDF vs Excel names, update revision when matched and add new drawings ##########
+    # Get revision from raw list of PDF drawings
+    rawlist_PDF = Catch_Drawings()
+
+    for file_Name in rawlist_PDF:
+        print(f"\nProcessing drawing file: {file_Name}")
+        # Define regex patterns to extract project number, revision, and drawing name
+        pjtNo_pattern = r"\\([^\\]*)-[A-Z]" # Pattern to catch anything before department letter (C, A or S) with hyphen)
+        dwg_pattern = r"\d{5}-(.*) \[" # Pattern to catch anything between 5 digits with a hyphen and " ["
+        rev_pattern = r"\[(.*)\]" # Pattern to catch anything between "[ " and "]"        
+        name_pattern = r"\] (.*)\.pdf" # Pattern to catch anything between "] " and ".pdf"
+        pjtNo_match = re.search(pjtNo_pattern, file_Name)
+        dwg_match = re.search(dwg_pattern, file_Name)
+        rev_match = re.search(rev_pattern, file_Name)
+        name_match = re.search(name_pattern, file_Name)
+        
+        # Skip file if pattern not found
+        if not (pjtNo_match and dwg_match and rev_match and name_match):
+            print(f"Could not parse all details from '{file_Name}'. Skipping.")
+            continue # Skip to the next file
+        
+        # Strip found values from " " and store them
+        project_No = pjtNo_match.group(1).strip() 
+        drawing_No = dwg_match.group(1).strip() 
+        revision = rev_match.group(1).strip() 
+        drawing_Name = name_match.group(1).strip()
+
+        # Get drawing group number and count number (e.g. drawing C-05-11, has group 5 and count 11)
+        drawing_No_parts = drawing_No.split('-')
+        drawing_Group = int(drawing_No_parts[1]) # e.g., 5
+        drawing_Count = int(drawing_No_parts[2]) # e.g., 11
+        
+        # Compare drawing names from list_PDF and drawing names from cells in Excel
+        excel_Match = False # Flag to track if the drawing name matched in Excel           
+        for row_index in range(24, 151):
+            name_cell = worksheet.range((row_index, 3))  # (row, col) tuple
+            # If there is a match, update revision in the same row at the revision column
+            if name_cell.value and str(name_cell.value).strip() == drawing_Name:
+                rev_cell = worksheet.range((name_cell.row, rev_column))  # Revision is updated at this cell coordinate
+                rev_cell.value = revision
+                print(f"Matched '{drawing_Name}'. Updated revision to '{revision}' at row {name_cell.row}.")
+                excel_Match = True
+                break  # Exit the loop for this drawing file because a match was found
+
+        # If not a match, add new drawing name into new row
+        match_counter = 0
+        if not excel_Match :
+            print(f"No match found for drawing: {drawing_Name}. Adding new entry...")
+            # Find drawing number in column B to determine where to add new drawing
+            for row_index in range(24, 151):
+                # Get drawing group number and count number from cell value (e.g. drawing C-05-11, has group 5 and count 11)
+                drawing_No_cell = worksheet.range((row_index, 2)).value
+                if not drawing_No_cell:
+                    continue
+                parts = str(drawing_No_cell).split('-')
+                # defensive: ensure expected format
+                if len(parts) < 3:
+                    continue
+                try:
+                    drawing_Group_cell = int(parts[1])
+                except ValueError:
+                    continue
+
+                if drawing_Group == drawing_Group_cell:
+                    match_counter += 1
+                    last_match_row = row_index  # update each time a match is found
+            
+            if match_counter > 0:
+                # There are existing drawings in the same group, find correct position to insert
+                for row_index in range(24, 151):
+                    drawing_No_cell = worksheet.range((row_index, 2)).value
+                    # CRITICAL: Skip empty cells to avoid NoneType error
+                    if not drawing_No_cell:
+                        continue                    
+                    drawing_No_parts_cell = drawing_No_cell.split('-')                    
+                    # Ensure the split produced at least 3 parts
+                    if len(drawing_No_parts_cell) < 3:
+                        continue                    
+                    try:
+                        drawing_Group_cell = int(drawing_No_parts_cell[1])  # e.g., 5
+                        drawing_Count_cell = int(drawing_No_parts_cell[2])  # e.g., 11
+                    except ValueError:
+                        continue                    
+                    
+                    # TODO: FIX error here when inserting rows causes formula errors
+                    # Check where to insert new drawing if drawing_Count is less than existing ones
+                    if drawing_Group == drawing_Group_cell and drawing_Count < drawing_Count_cell:
+                        # Shift rows down to make space for new drawing                         
+                        worksheet.api.Rows(row_index).Insert()                                  # insert a blank row
+                        worksheet.api.Rows(row_index + 1).Copy(worksheet.api.Rows(row_index))   # copy formulas/format from row below
+                        print("ROW INSERTED at index: " + str(row_index))
+                        # worksheet.cell(row=row_index, column=1, value=project_No)  # Add project number
+                        # worksheet.cell(row=row_index, column=2, value=drawing_No)  # Add drawing number
+                        # worksheet.cell(row=row_index, column=3, value=drawing_Name)  # Add drawing name
+                        # worksheet.cell(row=row_index, column=rev_column, value=revision)  # Set revision from PDF
+                        # print(f"Added new drawing {drawing_Name} at row {row_index} with revision {revision}.")                            
+                        break  # Exit the loop after adding the new drawing to avoid multiple additions
+                    elif row_index == last_match_row:
+                        # If reached last match row and no smaller count found, add after last match
+                        next_row = last_match_row + 1
+                        # Shift rows down to make space for new drawing
+                        # insert_row_and_copy_formulas(worksheet, next_row, max_col=30)
+                        worksheet.api.Rows(next_row).Insert()                                 # insert a blank row
+                        worksheet.api.Rows(next_row + 1).Copy(worksheet.api.Rows(next_row))   # copy formulas/format from row below
+                        print("ROW INSERTED at index: " + str(next_row))
+                        # worksheet.cell(row=next_row, column=1, value=project_No)  # Add project number
+                        # worksheet.cell(row=next_row, column=2, value=drawing_No)  # Add drawing number
+                        # worksheet.cell(row=next_row, column=3, value=drawing_Name)  # Add drawing name
+                        # worksheet.cell(row=next_row, column=rev_column, value=revision)  # Set revision from PDF
+                        # print(f"Added new drawing {drawing_Name} at row {next_row} with revision {revision}.")                            
+                        break  # Exit the loop after adding the new drawing to avoid multiple additions
+            else:
+                # No existing drawings in the same group, add to the first empty row found
+                for empty_row in range(24, 151):
+                    if worksheet.range((empty_row, 2)).value is None:
+                        worksheet.range((empty_row, 1)).value = project_No  # Add project number
+                        worksheet.range((empty_row, 2)).value = drawing_No  # Add drawing number
+                        worksheet.range((empty_row, 3)).value = drawing_Name  # Add drawing name
+                        worksheet.range((empty_row, rev_column)).value = revision  # Set initial revision to 1
+                        print(f"Added new drawing {drawing_Name} at row {empty_row} with revision {revision}.")                            
+                        break  # Exit the loop after adding the new drawing to avoid multiple additions
+
+    # Extract transmittal file name from path
+    pattern = r"transmittal \d{6}\.xlsx"
+    match = re.search(pattern, transmittal, re.IGNORECASE)
+    if match:
+        m_filename = match.group()
+    else:
+        print("Transmittal filename does not match expected pattern.")
+        print("Please check the name matches: Transmittal YYMMDD.xlsx")
+        workbook.close()
+        return None, None
+    
+    transmittal_filename = Path(m_filename)
+    transmittal_filename.parent.mkdir(parents=True, exist_ok=True)   # ensure folder exists
+
+    # Save the modified workbook    
+    workbook.save(transmittal_filename)
+    print(f"\nChanges saved in Transmittal excel '{transmittal_filename}'.")
+
+    # CRITICAL: Close the workbook before returning so it's not locked
+    try:
+        workbook.close()
+        print("Workbook closed in openpyxl.")
+    except Exception as e:
+        print(f"Error closing workbook: {e}")
+    
+    # # Small delay to allow Excel to fully terminate        
+    # time.sleep(1)
+
+    return transmittal, sheet_name
 
 def Overwrite_Organised():
     # Load transmittal Excel file
@@ -61,7 +264,7 @@ def Overwrite_Organised():
 
     print("Choose sheet to process:")
     while True:
-        # Print the menu options        
+        # Print the menu options
         print("1. CIVIL")
         print("2. STRUCTURE")
         print("3. ARCHITECT")
@@ -74,16 +277,16 @@ def Overwrite_Organised():
             # Check if 'CIVIL' sheet exists. Select it if it does
             if 'CIVIL' in workbook.sheetnames:
                 print("CIVIL sheet found.")
-                worksheet = workbook['CIVIL']
+                worksheet = workbook["CIVIL"]
                 sheet_name = "CIVIL"
             else:
-                raise ValueError("Sheet 'CIVIL' not found in the Excel file. Check sheet name spelling") 
+                raise ValueError("Sheet 'CIVIL' not found in the Excel file. Check sheet name spelling")
             break
         elif choice == '2':
             # Check if 'ARCHITECT' sheet exists. Select it if it does
             if 'ARCHITECT' in workbook.sheetnames:
                 print("ARCHITECT sheet found.")
-                worksheet = workbook['ARCHITECT']
+                worksheet = workbook["ARCHITECT"]
                 sheet_name = "ARCHITECT"
             else:
                 raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
@@ -92,7 +295,7 @@ def Overwrite_Organised():
             # Check if 'STRUCTURE' sheet exists. Select it if it does
             if 'STRUCTURE' in workbook.sheetnames:
                 print("STRUCTURE sheet found.")
-                worksheet = workbook['STRUCTURE']
+                worksheet = workbook["STRUCTURE"]
                 sheet_name = "STRUCTURE"
             else:
                 raise ValueError("Sheet 'ARCHITECT' not found in the Excel file. Check sheet name spelling")
@@ -103,6 +306,8 @@ def Overwrite_Organised():
         else:
             print("Invalid choice. Please enter a number between 1 and 3.")
             input("Press Enter to continue...")
+
+    # unhide_sheet(worksheet)
 
     # Get revision column index from Excel by last date reference
     dateRow_index = 1
@@ -189,29 +394,44 @@ def Overwrite_Organised():
                 # There are existing drawings in the same group, find correct position to insert
                 for row_index in range(24, 151):
                     drawing_No_cell = worksheet.cell(row=row_index, column=2).value
-                    drawing_No_parts_cell = drawing_No_cell.split('-')
-                    drawing_Group_cell = int(drawing_No_parts_cell[1]) # e.g., 5
-                    drawing_Count_cell = int(drawing_No_parts_cell[2]) # e.g., 11                    
+                    # CRITICAL: Skip empty cells to avoid NoneType error
+                    if not drawing_No_cell:
+                        continue                    
+                    drawing_No_parts_cell = drawing_No_cell.split('-')                    
+                    # Ensure the split produced at least 3 parts
+                    if len(drawing_No_parts_cell) < 3:
+                        continue                    
+                    try:
+                        drawing_Group_cell = int(drawing_No_parts_cell[1])  # e.g., 5
+                        drawing_Count_cell = int(drawing_No_parts_cell[2])  # e.g., 11
+                    except ValueError:
+                        continue                    
+                    
+                    # TODO: FIX error here when inserting rows causes formula errors
                     # Check where to insert new drawing if drawing_Count is less than existing ones
                     if drawing_Group == drawing_Group_cell and drawing_Count < drawing_Count_cell:
                         # Shift rows down to make space for new drawing
-                        insert_row_and_copy_formulas(worksheet, row_index, max_col=30)
-                        worksheet.cell(row=row_index, column=1, value=project_No)  # Add project number
-                        worksheet.cell(row=row_index, column=2, value=drawing_No)  # Add drawing number
-                        worksheet.cell(row=row_index, column=3, value=drawing_Name)  # Add drawing name
-                        worksheet.cell(row=row_index, column=rev_column, value=revision)  # Set revision from PDF
-                        print(f"Added new drawing {drawing_Name} at row {row_index} with revision {revision}.")                            
+                        # insert_row_and_copy_formulas(worksheet, row_index, max_col=30)
+                        worksheet.insert_rows(row_index)
+                        print("ROW INSERTED at index: " + str(row_index))
+                        # worksheet.cell(row=row_index, column=1, value=project_No)  # Add project number
+                        # worksheet.cell(row=row_index, column=2, value=drawing_No)  # Add drawing number
+                        # worksheet.cell(row=row_index, column=3, value=drawing_Name)  # Add drawing name
+                        # worksheet.cell(row=row_index, column=rev_column, value=revision)  # Set revision from PDF
+                        # print(f"Added new drawing {drawing_Name} at row {row_index} with revision {revision}.")                            
                         break  # Exit the loop after adding the new drawing to avoid multiple additions
                     elif row_index == last_match_row:
                         # If reached last match row and no smaller count found, add after last match
                         next_row = last_match_row + 1
                         # Shift rows down to make space for new drawing
-                        insert_row_and_copy_formulas(worksheet, next_row, max_col=30)
-                        worksheet.cell(row=next_row, column=1, value=project_No)  # Add project number
-                        worksheet.cell(row=next_row, column=2, value=drawing_No)  # Add drawing number
-                        worksheet.cell(row=next_row, column=3, value=drawing_Name)  # Add drawing name
-                        worksheet.cell(row=next_row, column=rev_column, value=revision)  # Set revision from PDF
-                        print(f"Added new drawing {drawing_Name} at row {next_row} with revision {revision}.")                            
+                        # insert_row_and_copy_formulas(worksheet, next_row, max_col=30)
+                        worksheet.insert_rows(next_row)
+                        print("ROW INSERTED at index: " + str(next_row))
+                        # worksheet.cell(row=next_row, column=1, value=project_No)  # Add project number
+                        # worksheet.cell(row=next_row, column=2, value=drawing_No)  # Add drawing number
+                        # worksheet.cell(row=next_row, column=3, value=drawing_Name)  # Add drawing name
+                        # worksheet.cell(row=next_row, column=rev_column, value=revision)  # Set revision from PDF
+                        # print(f"Added new drawing {drawing_Name} at row {next_row} with revision {revision}.")                            
                         break  # Exit the loop after adding the new drawing to avoid multiple additions
             else:
                 # No existing drawings in the same group, add to the first empty row found
@@ -233,8 +453,7 @@ def Overwrite_Organised():
         print("Transmittal filename does not match expected pattern.")
         print("Please check the name matches: Transmittal YYMMDD.xlsx")
         workbook.close()
-        return None, None
-    
+        return None, None    
     
     # Save the modified workbook    
     workbook.save(transmittal_filename)
@@ -689,8 +908,10 @@ def Save_as_PDF():
 
 
 if __name__ == "__main__":    
-    #testing_only()
+    # testing_only()
     print("Transmit_Auto1000 Start")    
-    Save_as_PDF()
+    # Save_as_PDF()
+    # Overwrite_Organised()
+    Xwing_Solution()
     print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
     print("Version 5.0 - 21/10/2025")
