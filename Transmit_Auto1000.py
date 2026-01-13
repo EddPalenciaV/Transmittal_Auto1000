@@ -41,8 +41,8 @@ def unhide_sheet(ws):
 def Xwing_Solution():
     # Load transmittal Excel file
     print("Loading new Transmittal Excel file...")
-    # transmittal = Request_Get_Date()
-    transmittal = r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\Transmittal 250418.xlsx"    
+    transmittal = Request_Get_Date()
+    # transmittal = r"C:\Users\eddpa\Desktop\Transmittal_Auto1000\Transmittal 250418.xlsx"    
     workbook = xw.Book(transmittal)
 
     print("Choose sheet to process:")
@@ -186,34 +186,30 @@ def Xwing_Solution():
                         drawing_Group_cell = int(drawing_No_parts_cell[1])  # e.g., 5
                         drawing_Count_cell = int(drawing_No_parts_cell[2])  # e.g., 11
                     except ValueError:
-                        continue                    
+                        continue                                        
                     
-                    # TODO: FIX error here when inserting rows causes formula errors
                     # Check where to insert new drawing if drawing_Count is less than existing ones
-                    if drawing_Group == drawing_Group_cell and drawing_Count < drawing_Count_cell:
-                        # Shift rows down to make space for new drawing                         
+                    if drawing_Group == drawing_Group_cell and drawing_Count < drawing_Count_cell:                        
                         worksheet.api.Rows(row_index).Insert()                                  # insert a blank row
                         worksheet.api.Rows(row_index + 1).Copy(worksheet.api.Rows(row_index))   # copy formulas/format from row below
-                        print("ROW INSERTED at index: " + str(row_index))
-                        # worksheet.cell(row=row_index, column=1, value=project_No)  # Add project number
-                        # worksheet.cell(row=row_index, column=2, value=drawing_No)  # Add drawing number
-                        # worksheet.cell(row=row_index, column=3, value=drawing_Name)  # Add drawing name
-                        # worksheet.cell(row=row_index, column=rev_column, value=revision)  # Set revision from PDF
-                        # print(f"Added new drawing {drawing_Name} at row {row_index} with revision {revision}.")                            
+                        
+                        worksheet.range((row_index, 1)).value = project_No  # Add project number                        
+                        worksheet.range((row_index, 2)).value = drawing_No  # Add drawing number                        
+                        worksheet.range((row_index, 3)).value = drawing_Name  # Add drawing name                        
+                        worksheet.range((row_index, rev_column)).value = revision  # Set revision from PDF
+                        print(f"Added new drawing {drawing_Name} at row {row_index} with revision {revision}.")                            
                         break  # Exit the loop after adding the new drawing to avoid multiple additions
                     elif row_index == last_match_row:
                         # If reached last match row and no smaller count found, add after last match
-                        next_row = last_match_row + 1
-                        # Shift rows down to make space for new drawing
-                        # insert_row_and_copy_formulas(worksheet, next_row, max_col=30)
+                        next_row = last_match_row + 1                        
                         worksheet.api.Rows(next_row).Insert()                                 # insert a blank row
                         worksheet.api.Rows(next_row + 1).Copy(worksheet.api.Rows(next_row))   # copy formulas/format from row below
-                        print("ROW INSERTED at index: " + str(next_row))
-                        # worksheet.cell(row=next_row, column=1, value=project_No)  # Add project number
-                        # worksheet.cell(row=next_row, column=2, value=drawing_No)  # Add drawing number
-                        # worksheet.cell(row=next_row, column=3, value=drawing_Name)  # Add drawing name
-                        # worksheet.cell(row=next_row, column=rev_column, value=revision)  # Set revision from PDF
-                        # print(f"Added new drawing {drawing_Name} at row {next_row} with revision {revision}.")                            
+                        
+                        worksheet.range((next_row, 1)).value = project_No  # Add project number                        
+                        worksheet.range((next_row, 2)).value = drawing_No  # Add drawing number                        
+                        worksheet.range((next_row, 3)).value = drawing_Name  # Add drawing name                        
+                        worksheet.range((next_row, rev_column)).value = revision  # Set revision from PDF
+                        print(f"Added new drawing {drawing_Name} at row {next_row} with revision {revision}.")                            
                         break  # Exit the loop after adding the new drawing to avoid multiple additions
             else:
                 # No existing drawings in the same group, add to the first empty row found
@@ -247,12 +243,12 @@ def Xwing_Solution():
     # CRITICAL: Close the workbook before returning so it's not locked
     try:
         workbook.close()
-        print("Workbook closed in openpyxl.")
+        print("Workbook closed successfully.")
     except Exception as e:
         print(f"Error closing workbook: {e}")
     
-    # # Small delay to allow Excel to fully terminate        
-    # time.sleep(1)
+    # Small delay to allow Excel to fully terminate        
+    time.sleep(5)
 
     return transmittal, sheet_name
 
@@ -816,7 +812,7 @@ def Save_as_PDF():
     Saves a specific worksheet from an Excel file to a PDF with A4 format
     by controlling the Excel application via COM.
     """
-    excel_path, sheet_name = Overwrite_Organised()
+    excel_path, sheet_name = Xwing_Solution()
 
     # Check if Overwrite_Transmittal() succeeded
     if excel_path is None or sheet_name is None:
@@ -879,39 +875,13 @@ def Save_as_PDF():
         print(f"Successfully saved PDF to '{pdf_abs_path}'")
 
     except Exception as e:
-        print(f"An error occurred during PDF conversion: {e}")
-
-    finally:
-        # CRITICAL: Always close properly to prevent corruption
-        if workbook:
-            try:
-                workbook.Close(SaveChanges=False)  # Don't save changes to avoid conflicts
-                print("Workbook closed in COM.")
-            except Exception as e:
-                print(f"Error closing workbook: {e}")
-        
-        # CRITICAL: Always ensure Excel is closed properly
-        if excel:
-            try:
-                excel.Quit()  # Must call Quit() to properly terminate Excel
-                print("Excel application closed in COM.")
-            except Exception as e:
-                print(f"Error closing Excel: {e}")
-            finally:
-                try:
-                    del excel
-                except:
-                    pass
-        
-        # Small delay to allow Excel to fully terminate        
-        time.sleep(1)
-
+        print(f"An error occurred during PDF conversion: {e}")        
 
 if __name__ == "__main__":    
     # testing_only()
     print("Transmit_Auto1000 Start")    
-    # Save_as_PDF()
+    Save_as_PDF()
     # Overwrite_Organised()
-    Xwing_Solution()
+    # Xwing_Solution()
     print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
-    print("Version 5.0 - 21/10/2025")
+    print("Version 5.1 - 13/01/2026")
