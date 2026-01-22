@@ -5,10 +5,157 @@ import shutil
 import glob
 import time
 import xlwings as xw
+import win32com.client
 from openpyxl import load_workbook
 from pathlib import Path
 from datetime import datetime
-import win32com.client
+
+def find_excel_transmittal():
+    print("Searching for Transmittal Excel file...")        
+    template_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
+    rootDirectory = os.path.abspath(".")
+    rootKey = "."
+    
+    # Find and list all transmittal files with date in the name
+    transmitt_pattern = re.compile(r"transmittal[ _-]\d{6}\.(?:xlsx)$", re.IGNORECASE)
+    root_path = Path(rootKey)
+    transmitt_match = []
+    for p in root_path.rglob("*"):
+        if p.is_file() and transmitt_pattern.search(p.name):
+            transmitt_match.append(str(p.resolve()))
+
+    # Get modification times and append to list
+    transmitt_and_modtimes = []    
+    if transmitt_match:
+        for file_path in transmitt_match:
+            mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+            transmitt_and_modtimes.append((file_path, mod_time))
+            #print(f"{file_path}: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Find and copy the latest modified transmittal file to root directory
+    if transmitt_and_modtimes:
+        latest_transmittal = max(transmitt_and_modtimes, key=lambda x: x[1])
+        latest_path = latest_transmittal[0]
+        latest_filename = os.path.basename(latest_path)
+        dest_path = os.path.join(rootDirectory, latest_filename)        
+        print(f"Transmittal files found... \nThe latest transmittal excel is: {latest_path}")
+
+        # Copy file only if source and destination are different
+        if os.path.abspath(latest_path) != os.path.abspath(dest_path):
+            shutil.copy(latest_path, rootDirectory)
+            print("Latest Transmittal Excel file moved into root directory.")
+            return dest_path
+        else:
+            # File is already in the root directory
+            print("Latest Transmittal file is already in the root directory.")
+            return latest_path
+    else:
+        print("Transmittal Excel file not found. Copying from Template source...")
+    
+    # Copy template file if no transmittal found
+    try:
+        shutil.copy(template_file, rootDirectory)
+        print(f"Template Transmittal'{template_file}' copied successfully to '{rootDirectory}'")
+    except FileNotFoundError:
+        print("Error: The source file was not found.")
+    except PermissionError:
+        print("Error: You do not have permission to write to the destination.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    return os.path.join(rootDirectory, "Transmittal_TEMPLATE.xlsx")
+
+def Catch_Drawings():
+    print("Searching for drawings in current folder and subfolders...")    
+    # Define pattern of file name that ends in .pdf and has a character or digit inside square brackets
+    glob_pattern = "*[[]?*[]]*.pdf"
+
+    # Strict regex to validate bracket content
+    regex_pattern = re.compile(r"\[[A-Za-z0-9]+\].*\.pdf$", re.IGNORECASE)
+
+    # Find all PDFs matching the glob pattern
+    all_matches = glob.glob(glob_pattern)
+    
+    # Filter with regex to ensure bracket content is alphanumeric only
+    rawListDrawings = []
+    for file_path in all_matches:
+        filename = os.path.basename(file_path)
+        if regex_pattern.search(filename):
+            # Store full absolute path
+            rawListDrawings.append(os.path.abspath(file_path))
+
+    if rawListDrawings:
+        print(f"Found {len(rawListDrawings)} drawings in the current folder.") 
+        return rawListDrawings
+    else:        
+        raise ValueError("No PDF drawings found to process.")
+
+def Request_Get_Date():
+    rootDirectory = os.path.abspath(".")
+    print("Choose a date for the transmittal (DD/MM/YY), from the following options: ")
+    while True:
+        # Print the menu options        
+        print("1. Today's Date")
+        print("2. Enter a Custom Date")
+        print("3. Exit Program")
+
+        # Prompt for user input
+        choice = input("Enter your choice (1-3): ")
+        # Activate choice
+        if choice == '1':
+            from datetime import datetime
+            now = datetime.now()
+            date_string = now.strftime("%d/%m/%y")
+            break
+        elif choice == '2':
+            date_string = input("Enter the date in the following format DD/MM/YY : ")
+            if len(date_string) != 8 or date_string[2] != '/' or date_string[5] != '/':
+                print("Invalid date format. Please try again.")
+                input("Press Enter to continue...")
+                continue
+            break
+        elif choice == '3':
+            print("Exiting the program. Goodbye!")
+            sys.exit(0)
+        else:
+            print("Invalid choice. Please enter a number between 1 and 3.")
+            input("Press Enter to continue...")
+    # Load transmittal Excel file
+    transmittal = find_excel_transmittal()
+    workbook = load_workbook(transmittal)
+
+    # Check if 'CIVIL' sheet exists
+    if 'CIVIL' in workbook.sheetnames:
+        print("CIVIL sheet found.")
+        worksheet = workbook['CIVIL']                       
+    else:
+        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")
+
+    # Get the date from user and overwrite empty date cells    
+    dateStrings = date_string.split('/')
+    dateParts_int = [int(s) for s in dateStrings]    
+    dateRow_index = 1    
+    for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
+        for cell in date_cells:
+            # Check if date already exists and use that column for updating revisions
+            if cell.value == dateParts_int[0] and worksheet.cell(row=cell.row + 1, column=cell.column).value == dateParts_int[1] and worksheet.cell(row=cell.row + 2, column=cell.column).value == dateParts_int[2]:
+                print(f"Date {date_string} already exists in the transmittal at cell {cell.coordinate}.")                                
+                print(f"Column: {cell.column} will be used for revisions update.")
+                break            
+            elif cell.value is None:
+                print("New date cell is: " + cell.coordinate)
+                for i, part in enumerate(dateParts_int):
+                    target_cell = dateRow_index + i
+                    worksheet.cell(row=target_cell, column=cell.column, value=part)                    
+                break
+
+    # Save the modified workbook
+    dateParts = [s for s in dateStrings]
+    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
+    output_filename = f"Transmittal {fileName_date}.xlsx"
+    workbook.save(output_filename)
+    print(f"Transmittal excel file saved as '{output_filename}'.")
+
+    return os.path.join(rootDirectory, output_filename)
 
 def Update_Transmittal():
     # Load transmittal Excel file
@@ -224,153 +371,6 @@ def Update_Transmittal():
 
     return transmittal, sheet_name
 
-def find_excel_transmittal():
-    print("Searching for Transmittal Excel file...")        
-    template_file = r"C:\Users\eddpa\Desktop\GoalFolder\Transmittal_TEMPLATE.xlsx" # Replace with template path used in company
-    rootDirectory = os.path.abspath(".")
-    rootKey = "."
-    
-    # Find and list all transmittal files with date in the name
-    transmitt_pattern = re.compile(r"transmittal[ _-]\d{6}\.(?:xlsx)$", re.IGNORECASE)
-    root_path = Path(rootKey)
-    transmitt_match = []
-    for p in root_path.rglob("*"):
-        if p.is_file() and transmitt_pattern.search(p.name):
-            transmitt_match.append(str(p.resolve()))
-
-    # Get modification times and append to list
-    transmitt_and_modtimes = []    
-    if transmitt_match:
-        for file_path in transmitt_match:
-            mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-            transmitt_and_modtimes.append((file_path, mod_time))
-            #print(f"{file_path}: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Find and copy the latest modified transmittal file to root directory
-    if transmitt_and_modtimes:
-        latest_transmittal = max(transmitt_and_modtimes, key=lambda x: x[1])
-        latest_path = latest_transmittal[0]
-        latest_filename = os.path.basename(latest_path)
-        dest_path = os.path.join(rootDirectory, latest_filename)        
-        print(f"Transmittal files found... \nThe latest transmittal excel is: {latest_path}")
-
-        # Copy file only if source and destination are different
-        if os.path.abspath(latest_path) != os.path.abspath(dest_path):
-            shutil.copy(latest_path, rootDirectory)
-            print("Latest Transmittal Excel file moved into root directory.")
-            return dest_path
-        else:
-            # File is already in the root directory
-            print("Latest Transmittal file is already in the root directory.")
-            return latest_path
-    else:
-        print("Transmittal Excel file not found. Copying from Template source...")
-    
-    # Copy template file if no transmittal found
-    try:
-        shutil.copy(template_file, rootDirectory)
-        print(f"Template Transmittal'{template_file}' copied successfully to '{rootDirectory}'")
-    except FileNotFoundError:
-        print("Error: The source file was not found.")
-    except PermissionError:
-        print("Error: You do not have permission to write to the destination.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-    return os.path.join(rootDirectory, "Transmittal_TEMPLATE.xlsx")
-
-def Catch_Drawings():
-    print("Searching for drawings in current folder and subfolders...")    
-    # Define pattern of file name that ends in .pdf and has a character or digit inside square brackets
-    glob_pattern = "*[[]?*[]]*.pdf"
-
-    # Strict regex to validate bracket content
-    regex_pattern = re.compile(r"\[[A-Za-z0-9]+\].*\.pdf$", re.IGNORECASE)
-
-    # Find all PDFs matching the glob pattern
-    all_matches = glob.glob(glob_pattern)
-    
-    # Filter with regex to ensure bracket content is alphanumeric only
-    rawListDrawings = []
-    for file_path in all_matches:
-        filename = os.path.basename(file_path)
-        if regex_pattern.search(filename):
-            # Store full absolute path
-            rawListDrawings.append(os.path.abspath(file_path))
-
-    if rawListDrawings:
-        print(f"Found {len(rawListDrawings)} drawings in the current folder.") 
-        return rawListDrawings
-    else:        
-        raise ValueError("No PDF drawings found to process.")
-
-def Request_Get_Date():
-    rootDirectory = os.path.abspath(".")
-    print("Choose a date for the transmittal (DD/MM/YY), from the following options: ")
-    while True:
-        # Print the menu options        
-        print("1. Today's Date")
-        print("2. Enter a Custom Date")
-        print("3. Exit Program")
-
-        # Prompt for user input
-        choice = input("Enter your choice (1-3): ")
-        # Activate choice
-        if choice == '1':
-            from datetime import datetime
-            now = datetime.now()
-            date_string = now.strftime("%d/%m/%y")
-            break
-        elif choice == '2':
-            date_string = input("Enter the date in the following format DD/MM/YY : ")
-            if len(date_string) != 8 or date_string[2] != '/' or date_string[5] != '/':
-                print("Invalid date format. Please try again.")
-                input("Press Enter to continue...")
-                continue
-            break
-        elif choice == '3':
-            print("Exiting the program. Goodbye!")
-            sys.exit(0)
-        else:
-            print("Invalid choice. Please enter a number between 1 and 3.")
-            input("Press Enter to continue...")
-    # Load transmittal Excel file
-    transmittal = find_excel_transmittal()
-    workbook = load_workbook(transmittal)
-
-    # Check if 'CIVIL' sheet exists
-    if 'CIVIL' in workbook.sheetnames:
-        print("CIVIL sheet found.")
-        worksheet = workbook['CIVIL']                       
-    else:
-        raise ValueError("Sheet 'CIVIL' not found in the Excel file.")
-
-    # Get the date from user and overwrite empty date cells    
-    dateStrings = date_string.split('/')
-    dateParts_int = [int(s) for s in dateStrings]    
-    dateRow_index = 1    
-    for date_cells in worksheet.iter_rows(min_row=dateRow_index, max_row=dateRow_index, min_col=5, max_col=30):    
-        for cell in date_cells:
-            # Check if date already exists and use that column for updating revisions
-            if cell.value == dateParts_int[0] and worksheet.cell(row=cell.row + 1, column=cell.column).value == dateParts_int[1] and worksheet.cell(row=cell.row + 2, column=cell.column).value == dateParts_int[2]:
-                print(f"Date {date_string} already exists in the transmittal at cell {cell.coordinate}.")                                
-                print(f"Column: {cell.column} will be used for revisions update.")
-                break            
-            elif cell.value is None:
-                print("New date cell is: " + cell.coordinate)
-                for i, part in enumerate(dateParts_int):
-                    target_cell = dateRow_index + i
-                    worksheet.cell(row=target_cell, column=cell.column, value=part)                    
-                break
-
-    # Save the modified workbook
-    dateParts = [s for s in dateStrings]
-    fileName_date = f"{dateParts[2]}{dateParts[1]}{dateParts[0]}"
-    output_filename = f"Transmittal {fileName_date}.xlsx"
-    workbook.save(output_filename)
-    print(f"Transmittal excel file saved as '{output_filename}'.")
-
-    return os.path.join(rootDirectory, output_filename)
-
 def Save_as_PDF():
     """
     Saves a specific worksheet from an Excel file to a PDF with A4 format
@@ -445,7 +445,7 @@ def Save_as_PDF():
     except Exception as e:
         print(f"An error occurred during PDF conversion: {e}")        
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     print("Transmit_Auto1000 Start")    
     Save_as_PDF()
     print("Created by Edd Palencia-Vanegas - June 2024. All rights reserved.")
